@@ -1,71 +1,48 @@
 package org.example;
 
-import java.io.File;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Scanner;
-import java.util.stream.Collectors;
-
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
+import com.google.gson.Gson;
+import org.w3c.dom.*;
+import javax.xml.parsers.*;
+import java.io.InputStream;
+import java.util.*;
 
 public class App {
-    public static void main(String[] args) {
-        try {
-            // Ask user what fields they want
-            Scanner scanner = new Scanner(System.in);
-            System.out.println("Enter fields to display (comma-separated, e.g. name,country,list):");
-            String input = "name,country"; // TEMP: remove this later
+    public static void main(String[] args) throws Exception {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Enter fields to display (comma-separated, e.g. name,country,list):");
+        String input = scanner.nextLine();
+        String[] selectedFields = input.split(",");
 
-            List<String> selectedFields = Arrays.stream(input.split(","))
-                                                .map(String::trim)
-                                                .collect(Collectors.toList());
+        InputStream inputStream = App.class.getClassLoader().getResourceAsStream("data.xml");
+        if (inputStream == null) {
+            throw new IllegalArgumentException("Could not find data.xml");
+        }
 
-            // Parse XML file
-            File file = new File("src/main/resources/data.xml");
-            DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-            Document doc = dBuilder.parse(file);
-            doc.getDocumentElement().normalize();
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        Document doc = builder.parse(inputStream);
+        doc.getDocumentElement().normalize();
 
-            NodeList recordList = doc.getElementsByTagName("record");
+        NodeList nodeList = doc.getElementsByTagName("record");
 
-            for (int i = 0; i < recordList.getLength(); i++) {
-                Node node = recordList.item(i);
-                if (node.getNodeType() == Node.ELEMENT_NODE) {
-                    Element record = (Element) node;
+        List<Map<String, String>> outputList = new ArrayList<>();
 
-                    for (String field : selectedFields) {
-                        String value = getTagValue(field, record);
-                        System.out.println(capitalize(field) + ": " + value);
-                    }
-                    System.out.println("------------");
+        for (int i = 0; i < nodeList.getLength(); i++) {
+            Element element = (Element) nodeList.item(i);
+            Map<String, String> jsonMap = new LinkedHashMap<>();
+            for (String field : selectedFields) {
+                field = field.trim();
+                Node fieldNode = element.getElementsByTagName(field).item(0);
+                if (fieldNode != null) {
+                    jsonMap.put(field, fieldNode.getTextContent());
+                } else {
+                    jsonMap.put(field, "N/A");
                 }
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+            outputList.add(jsonMap);
         }
-    }
 
-    private static String getTagValue(String tag, Element element) {
-        NodeList nlList = element.getElementsByTagName(tag);
-        if (nlList != null && nlList.getLength() > 0) {
-            NodeList subList = nlList.item(0).getChildNodes();
-
-            if (subList != null && subList.getLength() > 0) {
-                return subList.item(0).getNodeValue();
-            }
-        }
-        return "N/A";
-    }
-
-    private static String capitalize(String str) {
-        if (str == null || str.isEmpty()) return str;
-        return str.substring(0, 1).toUpperCase() + str.substring(1);
+        Gson gson = new Gson();
+        System.out.println(gson.toJson(outputList));
     }
 }
